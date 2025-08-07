@@ -2,6 +2,8 @@
 //
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 struct Vector {
@@ -16,6 +18,7 @@ struct Vector {
 	void* (*push_back)(struct Vector*, void*);
 	bool (*pop_back)(struct Vector*);
 	void* (*at)(struct Vector*, long);
+	bool (*remove)(struct Vector*, long, long);
 	bool (*delete)(struct Vector*);
 };
 
@@ -65,10 +68,6 @@ unsigned long get_MSB(unsigned long value) {
 
 bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector* vector, long new_reserved_size_items) {
 	if (vector == NULL) return false;
-	if (vector->data == NULL) return NULL;
-	if (new_reserved_size_items < vector->used_items) {
-		return false;
-	}
 	long new_reserved_size_bytes = 0;
 	if (new_reserved_size_items == -1) {
 		new_reserved_size_items = vector->reserved_items << 1; 
@@ -76,6 +75,9 @@ bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector* vector, long new_res
 	}
 	else {
 		new_reserved_size_bytes = new_reserved_size_items * vector->object_byte_size;
+	}
+	if (new_reserved_size_items < vector->used_items) {
+		return false;
 	}
 
 	void* current_memory = vector->data;
@@ -105,7 +107,7 @@ void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector* vector, void* obj) {
 	memcpy(item_position, obj, vector->object_byte_size);
 	vector->used_bytes = post_used_bytes;
 	vector->used_items += 1;
-	vector->end = ((unsigned char) vector->end) + vector->object_byte_size;
+	vector->end = ((unsigned char*) vector->end) + vector->object_byte_size;
 	return item_position;
 }
 
@@ -115,7 +117,7 @@ bool __VECTOR_MEMBER_FUNCTION_pop_back(struct Vector* vector) {
 	if (vector->used_items == 0) return false;
 	vector->used_items -= 1;
 	vector->used_bytes -= vector->object_byte_size;
-	vector->end = (unsigned char)vector->end - vector->object_byte_size;
+	vector->end = (unsigned char*)vector->end - vector->object_byte_size;
 	return true;
 }
 
@@ -136,18 +138,40 @@ bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector* vector) {
 	vector->used_items = 0;
 }
 
+bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector* vector, long starting_index, long length) {
+	if (vector == NULL) return false;
+	if (vector->data == NULL) return false;
+	if (length < 0 || starting_index < 0) return false;
+	if (starting_index + length > vector->used_items) return false;
+	long ending_index = starting_index + length;
+	void* start = vector->at(vector, starting_index);
+	void* end = vector->at(vector, ending_index);
+
+	long trailing_length = vector->used_items - ending_index;
+	long removed_bytes = length * vector->object_byte_size;
+
+	memcpy(start, end, trailing_length);
+	vector->used_items -= length;
+	vector->used_bytes -= removed_bytes;
+	vector->end = (unsigned char*)vector->end - removed_bytes;
+}
+
 static struct Vector* Vector(int object_byte_size) {
 	struct Vector* vector = malloc(sizeof(struct Vector));
+	vector->data = NULL;
 	vector->object_byte_size = object_byte_size;
 	vector->reserved_bytes = 0;
 	vector->reserved_items = 0;
 	vector->used_bytes = 0;
-	vector->used_items;
+	vector->used_items = 0;
 	vector->reserve = &__VECTOR_MEMBER_FUNCTION_resize_reserve;
 	vector->push_back = &__VECTOR_MEMBER_FUNCTION_push_back;
 	vector->pop_back = &__VECTOR_MEMBER_FUNCTION_pop_back;
 	vector->at = &__VECTOR_MEMBER_FUNCTION_at;
 	vector->delete = &__VECTOR_MEMBER_FUNCTION_delete;
+	vector->remove = &__VECTOR_MEMBER_FUNCTION_remove;
+	vector->reserve(vector, 1);
+	return vector;
 }
 
 int main()
@@ -157,7 +181,8 @@ int main()
 		a->push_back(a, &i);
 	}
 	for (int i = 0; i < 1000; i++) {
-		int was = *(int*)a->at(a, i);
+		void* position = a->at(a, i);
+		int was = *(int*)position;
 		*(int*) a->at(a, i) = (1000 - i);
 		int now = *(int*)a->at(a, i);
 		printf("value was %i, now %i\n",was,now);
