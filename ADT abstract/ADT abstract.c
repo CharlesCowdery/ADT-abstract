@@ -69,9 +69,6 @@ unsigned long get_MSB(unsigned long value) {
 }
 
 
-void error_handler(int sig) {
-
-}
 
 bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector* vector, long new_reserved_size_items) {
 	if (vector == NULL) return false;
@@ -85,7 +82,7 @@ bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector* vector, long new_res
 	else {
 		new_reserved_size_bytes = new_reserved_size_items * vector->object_byte_size;
 	}
-	if (new_reserved_size_items < vector->size) {
+	if (new_reserved_size_bytes < vector->size_bytes) {
 		return false;
 	}
 
@@ -154,6 +151,7 @@ bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector* vector) {
 
 
 	free(vector->data);
+	vector->data = NULL;
 	vector->reserved_bytes = 0;
 	vector->reserved_size = 0;
 	vector->size_bytes = 0;
@@ -222,7 +220,8 @@ bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector* vector, void* othe
 	void* source_splice_start =			(unsigned char*) other + source_index*vector->object_byte_size;
 
 	long length_bytes = length * vector->object_byte_size;
-	memcpy(destination_splice_end, destination_splice_start, length);
+	long trailing_bytes = (unsigned char*) vector->end - destination_splice_start;
+	memcpy(destination_splice_end, destination_splice_start, trailing_bytes);
 	memcpy(destination_splice_start, source_splice_start, length);
 
 	vector->size += length;
@@ -231,7 +230,7 @@ bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector* vector, void* othe
 	return true;
 }
 
-struct Vector* Vector(int object_byte_size) {
+struct Vector* new_Vector(int object_byte_size) {
 	struct Vector* vector = malloc(sizeof(struct Vector));
 	vector->data = NULL;
 	vector->object_byte_size = object_byte_size;
@@ -249,47 +248,86 @@ struct Vector* Vector(int object_byte_size) {
 	return vector;
 }
 
+struct Vector Vector(int object_byte_size) {
+	struct Vector* vector = new_Vector(object_byte_size);
+	struct Vector return_object = *vector;
+	free(vector);
+	return return_object;
+}
+
 struct String {
-	struct Vector basis;
+	struct Vector vector;
 	long  (*size)(struct String* self);
 	char* (*c_str)(struct String* self);
 	bool  (*assign)(struct String* self, char c_str[]);
 	bool  (*assign_dynamic)(struct String* self, char* c_str, long length);
+	bool  (*delete)(struct String* self);
 };
 
 long __STRING_MEMBER_FUNCTION_size(struct String* string){
-	return string->basis.size;
+	return string->vector.size-1;
 }
 
 char* __STRING_MEMBER_FUNCTION_c_str(struct String* string){
-	return string->basis.data;
+	return string->vector.data;
 }
 
 bool __STRING_MEMBER_FUNCTION_assign(struct String* string, char c_str[]) {
 	if (c_str == NULL) return false;
-	return __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(&string->basis, c_str, 0, 0, sizeof(c_str));
+	bool splice_return = __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(&string->vector, c_str, 0, 0, sizeof(c_str));
+	bool push = string->vector.push_back(&string->vector,"\0");
+	return splice_return && push;
 }
 
 bool __STRING_MEMBER_FUNCTION_assign_dynamic(struct String* string, char* c_str, long length) {
 	if (c_str == NULL) return false;
 	if (length < 0) return false;
-	return __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(&string->basis, c_str, 0, 0, length);
+	bool splice_return = __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(&string->vector, c_str, 0, 0, length);
+	bool push = string->vector.push_back(&string->vector, "\0");
+	return splice_return && push;
 }
 
-struct String* String(char str[]) {
+bool __STRING_MEMBER_FUNCTION_delete(struct String* self) {
+	self->vector.delete(&self->vector);
+}
+
+struct String* new_String(char str[]) {
 	struct String* string = malloc(sizeof(struct String));
-	string->basis = *Vector(sizeof(char));
+	string->vector = Vector(sizeof(char));
 	string->size = &__STRING_MEMBER_FUNCTION_size;
 	string->c_str = &__STRING_MEMBER_FUNCTION_c_str;
 	string->assign = &__STRING_MEMBER_FUNCTION_assign;
 	string->assign_dynamic = &__STRING_MEMBER_FUNCTION_assign_dynamic;
-	string->assign(string,str);
-
+	string->delete = &__STRING_MEMBER_FUNCTION_delete;
+	string->assign(string, str);
+	return string;
 }
 
+
+struct String String(char str[]) {
+	struct String* string = new_String(str);
+	struct String return_object = *string;
+	free(string);
+	return return_object;
+}
+
+
+
+
+//struct Vector errors;
+//void build_error_table() {
+//	errors = Vector(sizeof(struct String));
+//	errors.push_back(&errors,"Out of Bounds exception");
+//}
+//
+//void error_handler(int signal) {
+//
+//}
+
 int main()
-{
-	struct Vector* a = Vector(sizeof(int));
+{	
+	
+	struct Vector* a = new_Vector(sizeof(int));
 	for (int i = 0; i < 1000; i++) {
 		a->push_back(a, &i);
 	}
@@ -301,6 +339,8 @@ int main()
 		printf("value was %i, now %i\n",was,now);
 	}
 
+	struct String test = String("hi world");
+	printf(test.c_str(&test));
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
