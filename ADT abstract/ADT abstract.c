@@ -1,7 +1,6 @@
 // ADT abstract.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
-
-#include <iostream>
+#include <stdio.h>
 #include <stdbool.h>
 
 
@@ -154,6 +153,15 @@ static struct Vector* Vector(int object_byte_size) {
 int main()
 {
 	struct Vector* a = Vector(sizeof(int));
+	for (int i = 0; i < 1000; i++) {
+		a->push_back(a, &i);
+	}
+	for (int i = 0; i < 1000; i++) {
+		int was = *(int*)a->at(a, i);
+		*(int*) a->at(a, i) = (1000 - i);
+		int now = *(int*)a->at(a, i);
+		printf("value was %i, now %i\n",was,now);
+	}
 
 }
 
