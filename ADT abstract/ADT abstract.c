@@ -10,7 +10,8 @@
 #define GLUE(x, y) GLUE_HELPER(x, y)
 #define SUB_PTR(a) 
 
-typedef unsigned long uint64_t;
+typedef unsigned long long uint64_t;
+typedef long long int64_t;
 typedef void* void_ptr;
 #define Pair(type_1,type_2) GLUE(GLUE(GLUE(Pair_,type_1),_),type_2) 
 #define GENERATE_PAIR_DECLARATION(type_1,type_2)\
@@ -33,34 +34,34 @@ struct Pair(type_1,type_2){\
 
 struct Vector_generic {
 	int object_byte_size;
-	long size;
-	long reserved_size;
-	long size_bytes;
-	long reserved_bytes;
+	uint64_t size;
+	uint64_t reserved_size;
+	uint64_t size_bytes;
+	uint64_t reserved_bytes;
 	void* data;
 	void* end;
-	bool (*reserve)(struct Vector_generic* self, long size) ;
+	bool (*reserve)(struct Vector_generic* self, uint64_t size) ;
 	void* (*push_back_ref)(struct Vector_generic* self, void* item);
 	bool (*pop_back)(struct Vector_generic* self);
-	void* (*at_ref)(struct Vector_generic* self, long index);
-	bool (*remove)(struct Vector_generic* self, long starting_index, long length);
+	void* (*at_ref)(struct Vector_generic* self, uint64_t index);
+	bool (*remove)(struct Vector_generic* self, uint64_t starting_index, uint64_t length);
 	bool (*delete)(struct Vector_generic* self);
 };
 
 
 
 //searches for the most significant bit using bitmasks. I just think this algorithm is fun.
-unsigned long get_MSB(unsigned long value) {
-	unsigned long mask_1 = 0xffffffff00000000; 
-	unsigned long mask_2 = 0xffff0000ffff0000;
-	unsigned long mask_3 = 0xff00ff00ff00ff00;
-	unsigned long mask_4 = 0xf0f0f0f0f0f0f0f0;
-	unsigned long mask_5 = 0xcccccccccccccccc;
-	unsigned long mask_6 = 0xaaaaaaaaaaaaaaaa;
+uint64_t get_MSB(uint64_t value) {
+	uint64_t mask_1 = 0xffffffff00000000; 
+	uint64_t mask_2 = 0xffff0000ffff0000;
+	uint64_t mask_3 = 0xff00ff00ff00ff00;
+	uint64_t mask_4 = 0xf0f0f0f0f0f0f0f0;
+	uint64_t mask_5 = 0xcccccccccccccccc;
+	uint64_t mask_6 = 0xaaaaaaaaaaaaaaaa;
 
-	unsigned long masked_int = value;
-	unsigned long operator_int = masked_int & mask_1;
-	unsigned long final_value = 1;
+	uint64_t masked_int = value;
+	uint64_t operator_int = masked_int & mask_1;
+	uint64_t final_value = 1;
 	if (operator_int > 0) {
 		masked_int = operator_int;
 		final_value = final_value << 32;
@@ -95,11 +96,11 @@ unsigned long get_MSB(unsigned long value) {
 
 
 
-bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector_generic* vector, long new_reserved_size_items) {
+bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector_generic* vector, uint64_t new_reserved_size_items) {
 	if (vector == NULL) return false;
 	///SANITY CHECK///
 
-	long new_reserved_size_bytes = 0;
+	uint64_t new_reserved_size_bytes = 0;
 	if (new_reserved_size_items == -1) {
 		new_reserved_size_items = vector->reserved_size << 1; 
 		new_reserved_size_bytes = vector->reserved_bytes << 1;
@@ -131,7 +132,7 @@ void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector_generic* vector, void* ob
 	if (obj == NULL)			return NULL;
 	///SANITY CHECK///
 
-	long post_used_bytes = vector->size_bytes + vector->object_byte_size;
+	uint64_t post_used_bytes = vector->size_bytes + vector->object_byte_size;
 	if (post_used_bytes > vector->reserved_bytes) {
 		bool resize_success = __VECTOR_MEMBER_FUNCTION_resize_reserve(vector, -1);
 		if (!resize_success) return NULL;
@@ -156,7 +157,7 @@ bool __VECTOR_MEMBER_FUNCTION_pop_back(struct Vector_generic* vector) {
 	return true;
 }
 
-void* __VECTOR_MEMBER_FUNCTION_at(struct Vector_generic* vector, long index) {
+void* __VECTOR_MEMBER_FUNCTION_at(struct Vector_generic* vector, uint64_t index) {
 	if (vector == NULL)							return NULL;
 	if (vector->data == NULL)					return NULL;
 	if (index<0 || index >= vector->size) return NULL;
@@ -165,7 +166,7 @@ void* __VECTOR_MEMBER_FUNCTION_at(struct Vector_generic* vector, long index) {
 	return ((unsigned char*) vector->data) + index * vector->object_byte_size;
 }
 
-void* __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(struct Vector_generic* vector, long index) {
+void* __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(struct Vector_generic* vector, uint64_t index) {
 	return ((unsigned char*)vector->data) + index * vector->object_byte_size;
 }
 
@@ -183,19 +184,19 @@ bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector_generic* vector) {
 	vector->size = 0;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector_generic* vector, long starting_index, long length) {
+bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector_generic* vector, uint64_t starting_index, uint64_t length) {
 	if (vector == NULL)									return false;
 	if (vector->data == NULL)							return false;
 	if (length < 0 || starting_index < 0)				return false;
 	if (starting_index + length > vector->size)	return false;
 	///SANITY CHECK///
 
-	long ending_index = starting_index + length;
+	uint64_t ending_index = starting_index + length;
 	void* start = vector->at_ref(vector, starting_index);
 	void* end = vector->at_ref(vector, ending_index); //this places the pointer on the element AFTER the final element removed
 
-	long trailing_length = vector->size - ending_index;
-	long removed_bytes = length * vector->object_byte_size;
+	uint64_t trailing_length = vector->size - ending_index;
+	uint64_t removed_bytes = length * vector->object_byte_size;
 
 	memcpy(start, end, trailing_length*vector->object_byte_size);
 	vector->size -= length;
@@ -205,7 +206,7 @@ bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector_generic* vector, long startin
 	return true;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vector_generic* other, long destination_index, long source_index, long length) {
+bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vector_generic* other, uint64_t destination_index, uint64_t source_index, uint64_t length) {
 	if (vector == NULL || other == NULL)									return false;
 	if (vector->data == NULL || other->data == NULL)						return false;
 	if (vector->object_byte_size != other->object_byte_size)				return false;
@@ -215,7 +216,7 @@ bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vecto
 
 	///SANITY CHECK///
 
-	long destination_final_length = vector->size + length;
+	uint64_t destination_final_length = vector->size + length;
 	while (destination_final_length > vector->reserved_size) {
 		vector->reserve(vector, -1);
 	}
@@ -223,7 +224,7 @@ bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vecto
 	void* destination_splice_end	= __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(vector, destination_index + length);
 	void* source_splice_start		= __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(other, source_index);
 
-	long length_bytes = length * vector->object_byte_size;
+	uint64_t length_bytes = length * vector->object_byte_size;
 	memcpy(destination_splice_end, destination_splice_start, length);
 	memcpy(destination_splice_start, source_splice_start, length);
 
@@ -233,10 +234,10 @@ bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vecto
 	return true;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector_generic* vector, void* other, long destination_index, long source_index, long length) {
+bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector_generic* vector, void* other, uint64_t destination_index, uint64_t source_index, uint64_t length) {
 	///SANITY CHECK///
 
-	long destination_final_length = vector->size + length;
+	uint64_t destination_final_length = vector->size + length;
 	while (destination_final_length > vector->reserved_size) {
 		vector->reserve(vector, -1);
 	}
@@ -244,8 +245,8 @@ bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector_generic* vector, vo
 	void* destination_splice_end =		__VECTOR_MEMBER_FUNCTION_at_DANGEROUS(vector, destination_index + length);
 	void* source_splice_start =			(unsigned char*) other + source_index*vector->object_byte_size;
 
-	long length_bytes = length * vector->object_byte_size;
-	long trailing_bytes = (unsigned char*) vector->end - destination_splice_start;
+	uint64_t length_bytes = length * vector->object_byte_size;
+	uint64_t trailing_bytes = (unsigned char*) vector->end - destination_splice_start;
 	memcpy(destination_splice_end, destination_splice_start, trailing_bytes);
 	memcpy(destination_splice_start, source_splice_start, length);
 
@@ -283,123 +284,46 @@ struct Vector_generic Vector_generic(int object_byte_size) {
 #define Vector(t) GLUE(Vector_,t)
 #define new_Vector(t) GLUE(new_Vector_,t)
 
-#define GENERATE_TYPED_VECTOR_DECLARATION(t) \
-struct Vector(t) {\
+#define GENERATE_TYPED_VECTOR_DECLARATION(suffix,t) \
+struct Vector(suffix) {\
 int object_byte_size;\
-long size;\
-long reserved_size;\
-long size_bytes;\
-long reserved_bytes;\
+uint64_t size;\
+uint64_t reserved_size;\
+uint64_t size_bytes;\
+uint64_t reserved_bytes;\
 t* data;\
 t* end;\
-bool (*reserve)(struct Vector_generic* self, long size);\
-t* (*push_back_ref)(struct Vector(t)* self, t* item);\
+bool (*reserve)(struct Vector_generic* self, uint64_t size);\
+t* (*push_back_ref)(struct vector_generic* self, t* item);\
 bool (*pop_back)(struct Vector_generic* self);\
-t* (*at_ref)(struct Vector(t)* self, long index);\
-bool (*remove)(struct Vector_generic* self, long starting_index, long length);\
+t* (*at_ref)(struct vector_generic* self, uint64_t index);\
+bool (*remove)(struct Vector_generic* self, uint64_t starting_index, uint64_t length);\
 bool (*delete)(struct Vector_generic* self);\
-t (*at)(struct Vector(t)* self, long index);\
-t* (*push_back)(struct Vector(t)* self, t item);\
 };\
-\
-t* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_,t)(struct Vector(t)* vector,long index){\
-	return __VECTOR_MEMBER_FUNCTION_at(vector,index);\
-}\
-t GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_, t)(struct Vector(t)* vector, long index) {\
-		return *GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_,t)(vector,index);\
-}\
-t* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_,t)(struct Vector(t)* vector, t* item){\
-	return __VECTOR_MEMBER_FUNCTION_push_back(vector,item);\
-}\
-t* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_,t)(struct Vector(t)* vector, t item){\
-	return GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_,t)(vector,&item);\
-}\
-\
-struct Vector(t)* new_Vector(t)() {\
+struct Vector(suffix)* new_Vector(suffix)() {\
 	struct generic_vector* generic_vector = new_Vector_generic(sizeof(t));\
-	struct Vector(t)* vector = malloc(sizeof(struct Vector(t)));\
-	memcpy(vector,generic_vector,sizeof(struct Vector_generic));\
-	free(generic_vector);\
-	vector->at_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_,t);\
-	vector->at = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_,t);\
-	vector->push_back_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_,t);\
-	vector->push_back = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_,t);\
-	return vector;\
+	return generic_vector;\
 }\
-struct Vector(t) Vector(t)(){\
-	struct Vector(t)* vec_ptr = new_Vector(t)();\
-	struct Vector(t) solid_vec = *vec_ptr;\
+struct Vector(suffix) Vector(suffix)(){\
+	struct Vector(suffix)* vec_ptr = new_Vector(suffix)();\
+	struct Vector(suffix) solid_vec = *vec_ptr;\
 	free(vec_ptr);\
 	return solid_vec;\
 }
 
-GENERATE_TYPED_VECTOR_DECLARATION(int)
-GENERATE_TYPED_VECTOR_DECLARATION(char)
-/*
-struct Vector(char) {
-	\
-		int object_byte_size;\
-		long size;\
-		long reserved_size;\
-		long size_bytes;\
-		long reserved_bytes;\
-		char* data;\
-		char* end;\
-		bool (*reserve)(struct Vector_generic* self, long size);\
-		char* (*push_back_ref)(struct Vector(char) * self, char * item);\
-		bool (*pop_back)(struct Vector_generic* self);\
-		char* (*at_ref)(struct Vector(char) * self, long index);\
-		bool (*remove)(struct Vector_generic* self, long starting_index, long length);\
-		bool (*delete)(struct Vector_generic* self);\
-		char(*at)(struct Vector(char) * self, long index);\
-		char* (*push_back)(struct Vector(char) * self, char item);\
-};\
-\
-char* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_, char)(struct Vector(char)* vector, long index) {
-		\
-			return __VECTOR_MEMBER_FUNCTION_at(vector, index);\
-	}\
-		char GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_, char)(struct Vector(char)* vector, long index) {
-			\
-				return *GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_, char)(vector, index);\
-		}\
-			char* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_, char)(struct Vector(char)* vector, char* item) {
-				\
-					return __VECTOR_MEMBER_FUNCTION_push_back(vector, item);\
-			}\
-				char* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_, char)(struct Vector(char)* vector, char item) {
-					\
-						return GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_, char)(vector, &item);\
-				}\
-					\
-						struct Vector(char)* new_Vector(char)() {
-						\
-							struct generic_vector* generic_vector = new_Vector_generic(sizeof(char));\
-							struct ector(t) = malloc(sizeof)
-							generic_vector->at_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_, char);\
-							generic_vector->at = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_, char);\
-							generic_vector->push_back_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_, char);\
-							generic_vector->push_back = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_, char);\
-							return generic_vector;\
-					}\
-						struct Vector(char) Vector(char)() {
-							\
-								struct Vector(char)* vec_ptr = new_Vector(char)();\
-								struct Vector(char) solid_vec = *vec_ptr;\
-								free(vec_ptr);\
-								return solid_vec;\
-						}
-*/
+GENERATE_TYPED_VECTOR_DECLARATION(int,int)
+GENERATE_TYPED_VECTOR_DECLARATION(char,char)
+
 struct String {
 	struct Vector(char) vector;
-	long  (*size)(struct String* self);
+	uint64_t(*size)(struct String* self);
 	char* (*c_str)(struct String* self);
 	bool  (*assign)(struct String* self, char c_str[]);
-	bool  (*assign_dynamic)(struct String* self, char* c_str, long length);
+	bool  (*assign_dynamic)(struct String* self, char* c_str, uint64_t length);
 	bool  (*delete)(struct String* self);
 };
 
-long __STRING_MEMBER_FUNCTION_size(struct String* string){
+uint64_t __STRING_MEMBER_FUNCTION_size(struct String* string){
 	return string->vector.size-1;
 }
 
@@ -410,15 +334,15 @@ char* __STRING_MEMBER_FUNCTION_c_str(struct String* string){
 bool __STRING_MEMBER_FUNCTION_assign(struct String* string, char c_str[]) {
 	if (c_str == NULL) return false;
 	bool splice_return = __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(&string->vector, c_str, 0, 0, sizeof(c_str));
-	bool push = string->vector.push_back(&string->vector,"\0");
+	bool push = string->vector.push_back_ref(&string->vector,"\0"); 
 	return splice_return && push;
 }
 
-bool __STRING_MEMBER_FUNCTION_assign_dynamic(struct String* string, char* c_str, long length) {
+bool __STRING_MEMBER_FUNCTION_assign_dynamic(struct String* string, char* c_str, uint64_t length) {
 	if (c_str == NULL) return false;
 	if (length < 0) return false;
 	bool splice_return = __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(&string->vector, c_str, 0, 0, length);
-	bool push = string->vector.push_back(&string->vector, "\0");
+	bool push = string->vector.push_back_ref(&string->vector, "\0");
 	return splice_return && push;
 }
 
@@ -447,8 +371,8 @@ struct String String(char str[]) {
 }
 
 struct FixedTreeNode {
-	void* left;
-	void* right;
+	struct FixedTreeNode* left;
+	struct FixedTreeNode* right;
 };
 
 bool __FIXED_TREE_NODE_MEMBER_FUNCTION_delete(struct FixedTreeNode* node) {
@@ -469,36 +393,46 @@ struct FixedTreeNode* new_FixedTreeNode() {
 
 struct FixedTree {
 	struct FixedTreeNode* head;
-	unsigned long object_byte_width;
+	uint64_t object_byte_width;
+	bool (*insert)(struct FixedTree* self, uint64_t id, void* item);
+	bool (*remove)(struct FixedTree* self, uint64_t id);
+	void* (*find)(struct FixedTree* self, uint64_t id);
+	struct Vector(Pair(uint64_t, void_ptr)) (*get_items)(struct FixedTree* self);
 	bool (*__designated_copy_function)(void* object_ptr, void* destination);
 	bool (*__designated_delete_function)(void* object_ptr);
 };
 
 //note the final return case of return node actually returns a pointer to the object at the end, not a node.
-void** __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(struct FixedTreeNode** node, unsigned long navkey, unsigned long* bitmask) {
+void** __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(struct FixedTreeNode** node, uint64_t navkey, uint64_t* bitmask) {
 	if (*node == NULL) return node;
-	if (bitmask == 0) {
+	if (*bitmask == 0) {
 		return node;
 	}
 	bool go_left = (navkey & *bitmask) == 0;
 	*bitmask = *bitmask << 1;
 	if (go_left) {
-		return __FIXED_TREE_MEMBER_FUNCTION_navigate(&((*node)->left), navkey, bitmask);
+		return __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(&((*node)->left), navkey, bitmask);
 	}
 	else {
-		return __FIXED_TREE_MEMBER_FUNCTION_navigation(&((*node)->right), navkey, bitmask);
+		return __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(&((*node)->right), navkey, bitmask);
 	}
 }
 
-bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, unsigned long navkey, void* insert_object) {
-	unsigned long bitmask = 1;
+void* __FIXED_TREE_MEMBER_FUNCTION_find(struct FixedTree* tree, uint64_t navkey) {
+	uint64_t bitmask = 1;
+	void** end_node_ptr = __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(&tree->head, navkey, &bitmask);
+	return *end_node_ptr;
+}
+
+bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, uint64_t navkey, void* insert_object) {
+	uint64_t bitmask = 1;
 	void** end_node_ptr = __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(&tree->head, navkey, &bitmask);
 	//end_node_ptr points at the ptr to the end of the tree. If an item already exists there, it will not be NULL.
 	//in that case, bitmask is 0.
 	//otherwise, we need to create a new node, and set end_node_ptr to point at that node. We then want to navigate down that node and repeat.
 	while (bitmask != 0) {
 		*end_node_ptr = new_FixedTreeNode();
-		__FIXED_TREE_MEMBER_FUNCTION_navigate_internal(end_node_ptr, navkey, &bitmask);
+		end_node_ptr = __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(end_node_ptr, navkey, &bitmask);
 	}
 	if (*end_node_ptr != NULL) return false;
 	*end_node_ptr = malloc(tree->object_byte_width);
@@ -511,10 +445,10 @@ bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, unsigned long n
 	}
 }
 
-void __FIXEDTREE_MEMBER_FUNCTION_remove_object(struct FixedTree* tree, unsigned long id) {
+void __FIXED_TREE_MEMBER_FUNCTION_remove_object(struct FixedTree* tree, uint64_t id) {
 	struct FixedTreeNode* chain[63];
 	int index = 0;
-	unsigned long bitmask = 1;
+	uint64_t bitmask = 1;
 	struct FixedTreeNode** current_pointer = &tree->head;
 	while (bitmask != 0) {
 		chain[index] = current_pointer;
@@ -548,19 +482,31 @@ void __FIXEDTREE_MEMBER_FUNCTION_remove_object(struct FixedTree* tree, unsigned 
 }
 
 GENERATE_PAIR_DECLARATION(uint64_t, void_ptr)
+GENERATE_TYPED_VECTOR_DECLARATION(Pair(uint64_t,void_ptr),struct Pair(uint64_t,void_ptr))
 
-struct Vector_generic __FIXED_TREE_MEMBER_FUNCTION_get_items(struct FixedTree* tree) {
-	struct Vector_generic output = Vector_generic(sizeof(Pair_generic));
+struct Vector(Pair(uint64_t,void_ptr)) __FIXED_TREE_MEMBER_FUNCTION_get_items(struct FixedTree* tree) {
+	struct Vector(Pair(uint64_t, void_ptr)) output = Vector(Pair(uint64_t, void_ptr))();
+
 	struct FixedTreeNode* chain[65];
 	char state_chain[65];
+
 	chain[0] = tree->head;
 	state_chain[0] = 0;
+
 	int i = 0;
+	struct Pair(uint64_t, void_ptr) holder = {0,0};
+	uint64_t bitmask = 1;
+	uint64_t state = 0;
 	while (i > -1) {
-		if (i == 65) {
-			output.push_back_ref(&output, Pair(uint64_t, void_ptr)(chain[i]));
+		if (i == 64) {
+			holder.first = state;
+			holder.second = chain[i];
+			output.push_back_ref(&output, &holder);
+			i--;
+			continue;
 		}
 		if (state_chain[i] == 0) {
+			state = state & ~(bitmask << i);
 			state_chain[i] = 1;
 			if (chain[i]->left != NULL) {
 				state_chain[i + 1] = 0;
@@ -570,6 +516,8 @@ struct Vector_generic __FIXED_TREE_MEMBER_FUNCTION_get_items(struct FixedTree* t
 			continue;
 		}
 		if (state_chain[i] == 1) {
+			state = state | (bitmask << i);
+			
 			state_chain[i] = 2;
 			if (chain[i]->right != NULL) {
 				state_chain[i + 1] = 0;
@@ -580,17 +528,23 @@ struct Vector_generic __FIXED_TREE_MEMBER_FUNCTION_get_items(struct FixedTree* t
 		}
 		if (state_chain[i] == 2) i--;
 	}
+	return output;
 }
 
 
 
 
 
-struct FixedTree* new_FixedTree(long object_byte_width, bool (*copy_function)(void* object_ptr, void* destination), bool(*delete_function)(void* object_ptr)) {
+struct FixedTree* new_FixedTree(uint64_t object_byte_width, bool (*copy_function)(void* object_ptr, void* destination), bool(*delete_function)(void* object_ptr)) {
 	struct FixedTree* tree = malloc(sizeof(struct FixedTree));
+	tree->object_byte_width = object_byte_width;
 	tree->__designated_copy_function = copy_function;
 	tree->head = new_FixedTreeNode();
-
+	tree->find = &__FIXED_TREE_MEMBER_FUNCTION_find;
+	tree->insert = &__FIXED_TREE_MEMBER_FUNCTION_insert;
+	tree->remove = &__FIXED_TREE_MEMBER_FUNCTION_remove_object;
+	tree->get_items = &__FIXED_TREE_MEMBER_FUNCTION_get_items;
+	return tree;
 }
 
 
@@ -608,19 +562,32 @@ struct FixedTree* new_FixedTree(long object_byte_width, bool (*copy_function)(vo
 int main()
 {	
 	
-	struct Vector(int)* a = new_Vector_int();
-	for (int i = 0; i < 1000; i++) {
-		a->push_back(a, &i);
-	}
-	for (int i = 0; i < 1000; i++) {
-		int was = a->at(a, i);
-		*a->at_ref(a, i) = (1000 - i);
-		int now = a->at(a, i);
-		printf("value was %i, now %i\n",was,now);
-	}
+	//struct Vector(int)* a = new_Vector_int();
+	//for (int i = 0; i < 1000; i++) {
+	//	a->push_back_ref(a, &i);
+	//}
+	//for (int i = 0; i < 1000; i++) {
+	//	int was = *a->at_ref(a, i);
+	//	*a->at_ref(a, i) = (1000 - i);
+	//	int now = *a->at_ref(a, i);
+	//	printf("value was %i, now %i\n",was,now);
+	//}
+	//
+	//struct String test = String("hi world");
+	//printf(test.c_str(&test));
+	struct FixedTree* tree = new_FixedTree(sizeof(struct String),NULL,NULL);
+	tree->insert(tree, 2, new_String("t1"));
+	tree->insert(tree, 362, new_String("t2"));
+	tree->insert(tree, 235734, new_String("t3"));
+	tree->insert(tree, 234723452, new_String("t4"));
 
-	struct String test = String("hi world");
-	printf(test.c_str(&test));
+	struct Vector(Pair(uint64_t, void_ptr)) items = tree->get_items(tree);
+	for (int i = 0; i < items.size; i++) {
+		struct Pair(uint64_t, void_ptr) item = *items.at_ref(&items,i);
+		struct String* message = item.second;
+		void* item_test = tree->find(tree, item.first);
+		printf("%llu %s\n", item.first, message->c_str(item_test));
+	}
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
