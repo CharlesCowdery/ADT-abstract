@@ -32,6 +32,9 @@ struct Pair(type_1,type_2){\
 //	return pair;
 //}
 
+
+//void (*throw_exception)(uint64_t error_literal, struct String message);
+
 struct Vector_generic {
 	int object_byte_size;
 	uint64_t size;
@@ -46,9 +49,9 @@ struct Vector_generic {
 	void* (*at_ref)(struct Vector_generic* self, uint64_t index);
 	bool (*remove)(struct Vector_generic* self, uint64_t starting_index, uint64_t length);
 	bool (*delete)(struct Vector_generic* self);
+	void (*at)();
+	void (*push_back)();
 };
-
-
 
 //searches for the most significant bit using bitmasks. I just think this algorithm is fun.
 uint64_t get_MSB(uint64_t value) {
@@ -270,6 +273,8 @@ struct Vector_generic* new_Vector_generic(int object_byte_size) {
 	vector->at_ref = &__VECTOR_MEMBER_FUNCTION_at;
 	vector->delete = &__VECTOR_MEMBER_FUNCTION_delete;
 	vector->remove = &__VECTOR_MEMBER_FUNCTION_remove;
+	vector->at = NULL;
+	vector->push_back = NULL;
 	vector->reserve(vector, 1);
 	return vector;
 }
@@ -281,8 +286,12 @@ struct Vector_generic Vector_generic(int object_byte_size) {
 	return return_object;
 }
 
+
+
 #define Vector(t) GLUE(Vector_,t)
 #define new_Vector(t) GLUE(new_Vector_,t)
+
+typedef struct Vector_generic __VG;
 
 #define GENERATE_TYPED_VECTOR_DECLARATION(suffix,t) \
 struct Vector(suffix) {\
@@ -293,26 +302,36 @@ uint64_t size_bytes;\
 uint64_t reserved_bytes;\
 t* data;\
 t* end;\
-bool (*reserve)(struct Vector_generic* self, uint64_t size);\
-t* (*push_back_ref)(struct vector_generic* self, t* item);\
-bool (*pop_back)(struct Vector_generic* self);\
-t* (*at_ref)(struct vector_generic* self, uint64_t index);\
-bool (*remove)(struct Vector_generic* self, uint64_t starting_index, uint64_t length);\
-bool (*delete)(struct Vector_generic* self);\
+bool (*reserve)(__VG* self, uint64_t size);\
+t* (*push_back_ref)(__VG* self, t* item);\
+bool (*pop_back)(__VG* self);\
+t* (*at_ref)(__VG* self, uint64_t index);\
+bool (*remove)(__VG* self, uint64_t starting_index, uint64_t length);\
+bool (*delete)(__VG* self);\
+t (*at)(__VG* self, uint64_t index);\
+t* (*push_back)(__VG* self, t item);\
 };\
+t GLUE(__AVF_at_,suffix)(__VG* s, uint64_t i){\
+	return *(t*)(s->at_ref(s,i));\
+}\
+t* GLUE(__AVF_push_,suffix)(__VG* s, t i){\
+	return s->push_back_ref(s,&i);\
+}\
 struct Vector(suffix)* new_Vector(suffix)() {\
 	struct generic_vector* generic_vector = new_Vector_generic(sizeof(t));\
 	return generic_vector;\
 }\
 struct Vector(suffix) Vector(suffix)(){\
 	struct Vector(suffix)* vec_ptr = new_Vector(suffix)();\
+	vec_ptr->at = &GLUE(__AVF_at_,suffix);\
+	vec_ptr->push_back = &GLUE(__AVF_push_, suffix);\
 	struct Vector(suffix) solid_vec = *vec_ptr;\
 	free(vec_ptr);\
 	return solid_vec;\
 }
 
-GENERATE_TYPED_VECTOR_DECLARATION(int,int)
-GENERATE_TYPED_VECTOR_DECLARATION(char,char)
+GENERATE_TYPED_VECTOR_DECLARATION(int, int)
+GENERATE_TYPED_VECTOR_DECLARATION(char, char)
 
 struct String {
 	struct Vector(char) vector;
