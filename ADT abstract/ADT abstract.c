@@ -8,6 +8,28 @@
 
 #define GLUE_HELPER(x, y) x##y
 #define GLUE(x, y) GLUE_HELPER(x, y)
+#define SUB_PTR(a) 
+
+typedef unsigned long uint64_t;
+typedef void* void_ptr;
+#define Pair(type_1,type_2) GLUE(GLUE(GLUE(Pair_,type_1),_),type_2) 
+#define GENERATE_PAIR_DECLARATION(type_1,type_2)\
+struct Pair(type_1,type_2){\
+	type_1 first;\
+	type_2 second;\
+};\
+
+//struct Pair_generic {
+//	void* first;
+//	void* second;
+//};
+//
+//struct Pair_generic* Pair_generic(unsigned long first_byte_width, unsigned long second_byte_width) {
+//	struct Pair_generic* pair = malloc(first_byte_width + second_byte_width);
+//	pair->first = pair;
+//	pair->second = ((char*)pair->first) + first_byte_width;
+//	return pair;
+//}
 
 struct Vector_generic {
 	int object_byte_size;
@@ -423,11 +445,20 @@ struct String String(char str[]) {
 	free(string);
 	return return_object;
 }
-/*
+
 struct FixedTreeNode {
 	void* left;
 	void* right;
 };
+
+bool __FIXED_TREE_NODE_MEMBER_FUNCTION_delete(struct FixedTreeNode* node) {
+	if (node != NULL) {
+		__FIXED_TREE_NODE_MEMBER_FUNCTION_delete(node->left);
+		__FIXED_TREE_NODE_MEMBER_FUNCTION_delete(node->right);
+		free(node);
+	} 
+	return false;
+}
 
 struct FixedTreeNode* new_FixedTreeNode() {
 	struct FixedTreeNode* node = malloc(sizeof(struct FixedTreeNode));
@@ -440,6 +471,7 @@ struct FixedTree {
 	struct FixedTreeNode* head;
 	unsigned long object_byte_width;
 	bool (*__designated_copy_function)(void* object_ptr, void* destination);
+	bool (*__designated_delete_function)(void* object_ptr);
 };
 
 //note the final return case of return node actually returns a pointer to the object at the end, not a node.
@@ -458,7 +490,7 @@ void** __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(struct FixedTreeNode** nod
 	}
 }
 
-bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, void* insert_object, unsigned long navkey) {
+bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, unsigned long navkey, void* insert_object) {
 	unsigned long bitmask = 1;
 	void** end_node_ptr = __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(&tree->head, navkey, &bitmask);
 	//end_node_ptr points at the ptr to the end of the tree. If an item already exists there, it will not be NULL.
@@ -475,24 +507,92 @@ bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, void* insert_ob
 	}
 	else {
 		memcpy(*end_node_ptr, insert_object, tree->object_byte_width);
+		return true;
 	}
 }
 
-__FIXEDTREE_MEMBER_FUNCTION_add_object(unsigned long id, void* object) {
+void __FIXEDTREE_MEMBER_FUNCTION_remove_object(struct FixedTree* tree, unsigned long id) {
+	struct FixedTreeNode* chain[63];
+	int index = 0;
+	unsigned long bitmask = 1;
+	struct FixedTreeNode** current_pointer = &tree->head;
+	while (bitmask != 0) {
+		chain[index] = current_pointer;
+		index++;
+		bool go_left = (id & bitmask) == 0;
+		bitmask = bitmask << 1;
+		if(go_left){
+			current_pointer = &((*current_pointer)->left);
+		}
+		else {
+			current_pointer = &((*current_pointer)->right);
+		}
+		if (current_pointer == NULL) return false;
+	}
+	if (tree->__designated_delete_function != NULL) {
+		tree->__designated_delete_function(*current_pointer);
+		*current_pointer = NULL;
+	}
+	index -= 1;
+	bool do_deletion = false;
+	while (index >= 0) {
+		if (chain[index]->left != NULL && chain[index]->right != NULL) {
+			do_deletion = true;
+			break;
+		}
+		index--;
+	}
+	if (do_deletion == true) {
+		__FIXED_TREE_NODE_MEMBER_FUNCTION_delete(chain[index]);
+	}
+}
 
+GENERATE_PAIR_DECLARATION(uint64_t, void_ptr)
+
+struct Vector_generic __FIXED_TREE_MEMBER_FUNCTION_get_items(struct FixedTree* tree) {
+	struct Vector_generic output = Vector_generic(sizeof(Pair_generic));
+	struct FixedTreeNode* chain[65];
+	char state_chain[65];
+	chain[0] = tree->head;
+	state_chain[0] = 0;
+	int i = 0;
+	while (i > -1) {
+		if (i == 65) {
+			output.push_back_ref(&output, Pair(uint64_t, void_ptr)(chain[i]));
+		}
+		if (state_chain[i] == 0) {
+			state_chain[i] = 1;
+			if (chain[i]->left != NULL) {
+				state_chain[i + 1] = 0;
+				chain[i + 1] = chain[i]->left;
+				i++;
+			}
+			continue;
+		}
+		if (state_chain[i] == 1) {
+			state_chain[i] = 2;
+			if (chain[i]->right != NULL) {
+				state_chain[i + 1] = 0;
+				chain[i + 1] = chain[i]->right;
+				i++;
+			}
+			continue;
+		}
+		if (state_chain[i] == 2) i--;
+	}
 }
 
 
 
-struct FixedTree* new_FixedTree(long object_byte_width, bool (*copy_function)(void* object_ptr, void* destination)) {
+
+
+struct FixedTree* new_FixedTree(long object_byte_width, bool (*copy_function)(void* object_ptr, void* destination), bool(*delete_function)(void* object_ptr)) {
 	struct FixedTree* tree = malloc(sizeof(struct FixedTree));
-	if (copy_function != NULL) {
-		tree->__designated_copy_function = copy_function;
-	}
+	tree->__designated_copy_function = copy_function;
 	tree->head = new_FixedTreeNode();
 
 }
-*/
+
 
 
 //struct Vector errors;
