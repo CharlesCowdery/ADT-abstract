@@ -3,7 +3,11 @@ This is a project built for a final assignment in my CS3003 course
 I have selected option one, ADT in imperative languages.
 I started out constructing a vector struct. I didn't like signalling exceptions with false/NULL on functions, so the metagoal of this project became the impelementation of an exception function. 
 
-I decided to handle abstract types via void*s. Values are passed via void\*, and then memcpy'd into the structure's allocated memory. ADT objects are initialized with the bytewidth of their ADT type as an argument. 
+I decided to handle abstract types via a generic and then preprocessor templating to assign types to members.
+* In the generic of a container, values are passed via void\*, and then memcpy'd into the structure's allocated memory. ADT objects are initialized with the bytewidth of their ADT type as an argument. 
+* To create a container template, a preprocessor function is called to generate the code for the typed version. Not many changes are made, the types of functions are swapped, as well as the addition of pass by value functions.
+    * The generate command must only be called once, the type can be used like any other.
+
 
 I've decided to implement my exception function with two arguments, an exception literal (unsigned long), and message (string). The exception literal represents exception type. The name associated with the literal will be looked up in a tree, and then printed along with the message, before either exit or an abort signal is raised.
 
