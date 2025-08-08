@@ -6,7 +6,10 @@
 #include <string.h>
 #include <signal.h>
 
-struct Vector {
+#define GLUE_HELPER(x, y) x##y
+#define GLUE(x, y) GLUE_HELPER(x, y)
+
+struct Vector_generic {
 	int object_byte_size;
 	long size;
 	long reserved_size;
@@ -14,12 +17,12 @@ struct Vector {
 	long reserved_bytes;
 	void* data;
 	void* end;
-	bool (*reserve)(struct Vector* self, long size) ;
-	void* (*push_back)(struct Vector* self, void* item);
-	bool (*pop_back)(struct Vector* self);
-	void* (*at)(struct Vector* self, long index);
-	bool (*remove)(struct Vector* self, long starting_index, long length);
-	bool (*delete)(struct Vector* self);
+	bool (*reserve)(struct Vector_generic* self, long size) ;
+	void* (*push_back_ref)(struct Vector_generic* self, void* item);
+	bool (*pop_back)(struct Vector_generic* self);
+	void* (*at_ref)(struct Vector_generic* self, long index);
+	bool (*remove)(struct Vector_generic* self, long starting_index, long length);
+	bool (*delete)(struct Vector_generic* self);
 };
 
 
@@ -70,7 +73,7 @@ unsigned long get_MSB(unsigned long value) {
 
 
 
-bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector* vector, long new_reserved_size_items) {
+bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector_generic* vector, long new_reserved_size_items) {
 	if (vector == NULL) return false;
 	///SANITY CHECK///
 
@@ -100,7 +103,7 @@ bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector* vector, long new_res
 	return true;
 }
 
-void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector* vector, void* obj) {
+void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector_generic* vector, void* obj) {
 	if (vector == NULL)			return NULL;
 	if (vector->data == NULL)	return NULL;
 	if (obj == NULL)			return NULL;
@@ -119,7 +122,7 @@ void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector* vector, void* obj) {
 	return item_position;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_pop_back(struct Vector* vector) {
+bool __VECTOR_MEMBER_FUNCTION_pop_back(struct Vector_generic* vector) {
 	if (vector == NULL)				return false;
 	if (vector->data == NULL)		return false;
 	if (vector->size == 0)	return false;
@@ -131,7 +134,7 @@ bool __VECTOR_MEMBER_FUNCTION_pop_back(struct Vector* vector) {
 	return true;
 }
 
-void* __VECTOR_MEMBER_FUNCTION_at(struct Vector* vector, long index) {
+void* __VECTOR_MEMBER_FUNCTION_at(struct Vector_generic* vector, long index) {
 	if (vector == NULL)							return NULL;
 	if (vector->data == NULL)					return NULL;
 	if (index<0 || index >= vector->size) return NULL;
@@ -140,11 +143,11 @@ void* __VECTOR_MEMBER_FUNCTION_at(struct Vector* vector, long index) {
 	return ((unsigned char*) vector->data) + index * vector->object_byte_size;
 }
 
-void* __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(struct Vector* vector, long index) {
+void* __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(struct Vector_generic* vector, long index) {
 	return ((unsigned char*)vector->data) + index * vector->object_byte_size;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector* vector) {
+bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector_generic* vector) {
 	if (vector == NULL)			return false;
 	if (vector->data == NULL)	return false;
 	///SANITY CHECK///
@@ -158,7 +161,7 @@ bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector* vector) {
 	vector->size = 0;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector* vector, long starting_index, long length) {
+bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector_generic* vector, long starting_index, long length) {
 	if (vector == NULL)									return false;
 	if (vector->data == NULL)							return false;
 	if (length < 0 || starting_index < 0)				return false;
@@ -166,8 +169,8 @@ bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector* vector, long starting_index,
 	///SANITY CHECK///
 
 	long ending_index = starting_index + length;
-	void* start = vector->at(vector, starting_index);
-	void* end = vector->at(vector, ending_index); //this places the pointer on the element AFTER the final element removed
+	void* start = vector->at_ref(vector, starting_index);
+	void* end = vector->at_ref(vector, ending_index); //this places the pointer on the element AFTER the final element removed
 
 	long trailing_length = vector->size - ending_index;
 	long removed_bytes = length * vector->object_byte_size;
@@ -180,7 +183,7 @@ bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector* vector, long starting_index,
 	return true;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector* vector, struct Vector* other, long destination_index, long source_index, long length) {
+bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vector_generic* other, long destination_index, long source_index, long length) {
 	if (vector == NULL || other == NULL)									return false;
 	if (vector->data == NULL || other->data == NULL)						return false;
 	if (vector->object_byte_size != other->object_byte_size)				return false;
@@ -208,7 +211,7 @@ bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector* vector, struct Vector* other
 	return true;
 }
 
-bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector* vector, void* other, long destination_index, long source_index, long length) {
+bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector_generic* vector, void* other, long destination_index, long source_index, long length) {
 	///SANITY CHECK///
 
 	long destination_final_length = vector->size + length;
@@ -230,8 +233,8 @@ bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector* vector, void* othe
 	return true;
 }
 
-struct Vector* new_Vector(int object_byte_size) {
-	struct Vector* vector = malloc(sizeof(struct Vector));
+struct Vector_generic* new_Vector_generic(int object_byte_size) {
+	struct Vector_generic* vector = malloc(sizeof(struct Vector_generic));
 	vector->data = NULL;
 	vector->object_byte_size = object_byte_size;
 	vector->reserved_bytes = 0;
@@ -239,24 +242,134 @@ struct Vector* new_Vector(int object_byte_size) {
 	vector->size_bytes = 0;
 	vector->size = 0;
 	vector->reserve = &__VECTOR_MEMBER_FUNCTION_resize_reserve;
-	vector->push_back = &__VECTOR_MEMBER_FUNCTION_push_back;
+	vector->push_back_ref = &__VECTOR_MEMBER_FUNCTION_push_back;
 	vector->pop_back = &__VECTOR_MEMBER_FUNCTION_pop_back;
-	vector->at = &__VECTOR_MEMBER_FUNCTION_at;
+	vector->at_ref = &__VECTOR_MEMBER_FUNCTION_at;
 	vector->delete = &__VECTOR_MEMBER_FUNCTION_delete;
 	vector->remove = &__VECTOR_MEMBER_FUNCTION_remove;
 	vector->reserve(vector, 1);
 	return vector;
 }
 
-struct Vector Vector(int object_byte_size) {
-	struct Vector* vector = new_Vector(object_byte_size);
-	struct Vector return_object = *vector;
+struct Vector_generic Vector_generic(int object_byte_size) {
+	struct Vector_generic* vector = new_Vector_generic(object_byte_size);
+	struct Vector_generic return_object = *vector;
 	free(vector);
 	return return_object;
 }
 
+#define Vector(t) GLUE(Vector_,t)
+#define new_Vector(t) GLUE(new_Vector_,t)
+
+#define GENERATE_TYPED_VECTOR_DECLARATION(t) \
+struct Vector(t) {\
+int object_byte_size;\
+long size;\
+long reserved_size;\
+long size_bytes;\
+long reserved_bytes;\
+t* data;\
+t* end;\
+bool (*reserve)(struct Vector_generic* self, long size);\
+t* (*push_back_ref)(struct Vector(t)* self, t* item);\
+bool (*pop_back)(struct Vector_generic* self);\
+t* (*at_ref)(struct Vector(t)* self, long index);\
+bool (*remove)(struct Vector_generic* self, long starting_index, long length);\
+bool (*delete)(struct Vector_generic* self);\
+t (*at)(struct Vector(t)* self, long index);\
+t* (*push_back)(struct Vector(t)* self, t item);\
+};\
+\
+t* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_,t)(struct Vector(t)* vector,long index){\
+	return __VECTOR_MEMBER_FUNCTION_at(vector,index);\
+}\
+t GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_, t)(struct Vector(t)* vector, long index) {\
+		return *GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_,t)(vector,index);\
+}\
+t* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_,t)(struct Vector(t)* vector, t* item){\
+	return __VECTOR_MEMBER_FUNCTION_push_back(vector,item);\
+}\
+t* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_,t)(struct Vector(t)* vector, t item){\
+	return GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_,t)(vector,&item);\
+}\
+\
+struct Vector(t)* new_Vector(t)() {\
+	struct generic_vector* generic_vector = new_Vector_generic(sizeof(t));\
+	struct Vector(t)* vector = malloc(sizeof(struct Vector(t)));\
+	memcpy(vector,generic_vector,sizeof(struct Vector_generic));\
+	free(generic_vector);\
+	vector->at_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_,t);\
+	vector->at = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_,t);\
+	vector->push_back_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_,t);\
+	vector->push_back = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_,t);\
+	return vector;\
+}\
+struct Vector(t) Vector(t)(){\
+	struct Vector(t)* vec_ptr = new_Vector(t)();\
+	struct Vector(t) solid_vec = *vec_ptr;\
+	free(vec_ptr);\
+	return solid_vec;\
+}
+
+GENERATE_TYPED_VECTOR_DECLARATION(int)
+GENERATE_TYPED_VECTOR_DECLARATION(char)
+/*
+struct Vector(char) {
+	\
+		int object_byte_size;\
+		long size;\
+		long reserved_size;\
+		long size_bytes;\
+		long reserved_bytes;\
+		char* data;\
+		char* end;\
+		bool (*reserve)(struct Vector_generic* self, long size);\
+		char* (*push_back_ref)(struct Vector(char) * self, char * item);\
+		bool (*pop_back)(struct Vector_generic* self);\
+		char* (*at_ref)(struct Vector(char) * self, long index);\
+		bool (*remove)(struct Vector_generic* self, long starting_index, long length);\
+		bool (*delete)(struct Vector_generic* self);\
+		char(*at)(struct Vector(char) * self, long index);\
+		char* (*push_back)(struct Vector(char) * self, char item);\
+};\
+\
+char* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_, char)(struct Vector(char)* vector, long index) {
+		\
+			return __VECTOR_MEMBER_FUNCTION_at(vector, index);\
+	}\
+		char GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_, char)(struct Vector(char)* vector, long index) {
+			\
+				return *GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_, char)(vector, index);\
+		}\
+			char* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_, char)(struct Vector(char)* vector, char* item) {
+				\
+					return __VECTOR_MEMBER_FUNCTION_push_back(vector, item);\
+			}\
+				char* GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_, char)(struct Vector(char)* vector, char item) {
+					\
+						return GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_, char)(vector, &item);\
+				}\
+					\
+						struct Vector(char)* new_Vector(char)() {
+						\
+							struct generic_vector* generic_vector = new_Vector_generic(sizeof(char));\
+							struct ector(t) = malloc(sizeof)
+							generic_vector->at_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_ref_, char);\
+							generic_vector->at = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_at_, char);\
+							generic_vector->push_back_ref = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_ref_, char);\
+							generic_vector->push_back = &GLUE(__AUTO_VECTOR_MEMBER_FUNCTION_push_back_, char);\
+							return generic_vector;\
+					}\
+						struct Vector(char) Vector(char)() {
+							\
+								struct Vector(char)* vec_ptr = new_Vector(char)();\
+								struct Vector(char) solid_vec = *vec_ptr;\
+								free(vec_ptr);\
+								return solid_vec;\
+						}
+*/
 struct String {
-	struct Vector vector;
+	struct Vector(char) vector;
 	long  (*size)(struct String* self);
 	char* (*c_str)(struct String* self);
 	bool  (*assign)(struct String* self, char c_str[]);
@@ -293,7 +406,7 @@ bool __STRING_MEMBER_FUNCTION_delete(struct String* self) {
 
 struct String* new_String(char str[]) {
 	struct String* string = malloc(sizeof(struct String));
-	string->vector = Vector(sizeof(char));
+	string->vector = Vector(char)(sizeof(char));
 	string->size = &__STRING_MEMBER_FUNCTION_size;
 	string->c_str = &__STRING_MEMBER_FUNCTION_c_str;
 	string->assign = &__STRING_MEMBER_FUNCTION_assign;
@@ -310,8 +423,76 @@ struct String String(char str[]) {
 	free(string);
 	return return_object;
 }
+/*
+struct FixedTreeNode {
+	void* left;
+	void* right;
+};
+
+struct FixedTreeNode* new_FixedTreeNode() {
+	struct FixedTreeNode* node = malloc(sizeof(struct FixedTreeNode));
+	node->left = NULL;
+	node->right = NULL;
+	return node;
+}
+
+struct FixedTree {
+	struct FixedTreeNode* head;
+	unsigned long object_byte_width;
+	bool (*__designated_copy_function)(void* object_ptr, void* destination);
+};
+
+//note the final return case of return node actually returns a pointer to the object at the end, not a node.
+void** __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(struct FixedTreeNode** node, unsigned long navkey, unsigned long* bitmask) {
+	if (*node == NULL) return node;
+	if (bitmask == 0) {
+		return node;
+	}
+	bool go_left = (navkey & *bitmask) == 0;
+	*bitmask = *bitmask << 1;
+	if (go_left) {
+		return __FIXED_TREE_MEMBER_FUNCTION_navigate(&((*node)->left), navkey, bitmask);
+	}
+	else {
+		return __FIXED_TREE_MEMBER_FUNCTION_navigation(&((*node)->right), navkey, bitmask);
+	}
+}
+
+bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, void* insert_object, unsigned long navkey) {
+	unsigned long bitmask = 1;
+	void** end_node_ptr = __FIXED_TREE_MEMBER_FUNCTION_navigate_internal(&tree->head, navkey, &bitmask);
+	//end_node_ptr points at the ptr to the end of the tree. If an item already exists there, it will not be NULL.
+	//in that case, bitmask is 0.
+	//otherwise, we need to create a new node, and set end_node_ptr to point at that node. We then want to navigate down that node and repeat.
+	while (bitmask != 0) {
+		*end_node_ptr = new_FixedTreeNode();
+		__FIXED_TREE_MEMBER_FUNCTION_navigate_internal(end_node_ptr, navkey, &bitmask);
+	}
+	if (*end_node_ptr != NULL) return false;
+	*end_node_ptr = malloc(tree->object_byte_width);
+	if (tree->__designated_copy_function != NULL) {
+		return tree->__designated_copy_function(insert_object, *end_node_ptr);
+	}
+	else {
+		memcpy(*end_node_ptr, insert_object, tree->object_byte_width);
+	}
+}
+
+__FIXEDTREE_MEMBER_FUNCTION_add_object(unsigned long id, void* object) {
+
+}
 
 
+
+struct FixedTree* new_FixedTree(long object_byte_width, bool (*copy_function)(void* object_ptr, void* destination)) {
+	struct FixedTree* tree = malloc(sizeof(struct FixedTree));
+	if (copy_function != NULL) {
+		tree->__designated_copy_function = copy_function;
+	}
+	tree->head = new_FixedTreeNode();
+
+}
+*/
 
 
 //struct Vector errors;
@@ -327,15 +508,14 @@ struct String String(char str[]) {
 int main()
 {	
 	
-	struct Vector* a = new_Vector(sizeof(int));
+	struct Vector(int)* a = new_Vector_int();
 	for (int i = 0; i < 1000; i++) {
 		a->push_back(a, &i);
 	}
 	for (int i = 0; i < 1000; i++) {
-		void* position = a->at(a, i);
-		int was = *(int*)position;
-		*(int*) a->at(a, i) = (1000 - i);
-		int now = *(int*)a->at(a, i);
+		int was = a->at(a, i);
+		*a->at_ref(a, i) = (1000 - i);
+		int now = a->at(a, i);
 		printf("value was %i, now %i\n",was,now);
 	}
 
