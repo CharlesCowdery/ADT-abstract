@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+//#include <random>
 
 #define GLUE_HELPER(x, y) x##y
 #define GLUE(x, y) GLUE_HELPER(x, y)
@@ -44,6 +45,7 @@ struct Pair(type_1,type_2){\
 //}
 typedef struct String;
 struct String String(char* c_str);
+struct String* new_String(char str[]); 
 
 #define UNKNOWN_ERROR 0
 #define OUT_OF_RANGE 1
@@ -53,7 +55,7 @@ struct String String(char* c_str);
 
 struct FixedTree* error_table;
 //void (*throw_exception)(uint64_t error_literal, struct String message);
-void* throw_exception(uint64_t error_literal, struct String message);
+void* throw_exception(uint64_t error_literal, struct String* message);
 
 
 
@@ -71,58 +73,14 @@ struct Vector_generic {
 	void* (*at_ref)(struct Vector_generic* self, uint64_t index);
 	bool (*remove)(struct Vector_generic* self, uint64_t starting_index, uint64_t length);
 	bool (*delete)(struct Vector_generic* self);
+	void (*copy_function)(void* address, void* object);
+	void (*delete_function)(void* address);
 	void (*at)();
 	void (*push_back)();
 };
 
-//searches for the most significant bit using bitmasks. I just think this algorithm is fun.
-uint64_t get_MSB(uint64_t value) {
-	uint64_t mask_1 = 0xffffffff00000000; 
-	uint64_t mask_2 = 0xffff0000ffff0000;
-	uint64_t mask_3 = 0xff00ff00ff00ff00;
-	uint64_t mask_4 = 0xf0f0f0f0f0f0f0f0;
-	uint64_t mask_5 = 0xcccccccccccccccc;
-	uint64_t mask_6 = 0xaaaaaaaaaaaaaaaa;
-
-	uint64_t masked_int = value;
-	uint64_t operator_int = masked_int & mask_1;
-	uint64_t final_value = 1;
-	if (operator_int > 0) {
-		masked_int = operator_int;
-		final_value = final_value << 32;
-	}
-	operator_int = masked_int & mask_2;
-	if (operator_int > 0) {
-		masked_int = operator_int;
-		final_value = final_value << 16;
-	}
-	operator_int = masked_int & mask_3;
-	if (operator_int > 0) {
-		masked_int = operator_int;
-		final_value = final_value << 8;
-	}
-	operator_int = masked_int & mask_4;
-	if (operator_int > 0) {
-		masked_int = operator_int;
-		final_value = final_value << 4;
-	}
-	operator_int = masked_int & mask_5;
-	if (operator_int > 0) {
-		masked_int = operator_int;
-		final_value = final_value << 2;
-	}
-	operator_int = masked_int & mask_6;
-	if (operator_int > 0) {
-		masked_int = operator_int;
-		final_value = final_value << 1;
-	}
-	return final_value;
-}
-
-
-
 bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector_generic* vector, uint64_t new_reserved_size_items) {
-	if (vector == NULL) return throw_exception(INVALID_ARGUMENT,String("pointer passed to resize was null"));
+	if (vector == NULL) return throw_exception(INVALID_ARGUMENT,new_String("pointer passed to resize was null"));
 	///SANITY CHECK///
 
 	uint64_t new_reserved_size_bytes = 0;
@@ -152,9 +110,9 @@ bool __VECTOR_MEMBER_FUNCTION_resize_reserve(struct Vector_generic* vector, uint
 }
 
 void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector_generic* vector, void* obj) {
-	if (vector == NULL)			return throw_exception(INVALID_ARGUMENT,String("vector pointer was null"));
-	if (vector->data == NULL)	return throw_exception(INVALID_ARGUMENT,String("vector has been deleted"));
-	if (obj == NULL)			return throw_exception(INVALID_ARGUMENT,String("passed ptr to object is null"));
+	if (vector == NULL)			return throw_exception(INVALID_ARGUMENT,new_String("vector pointer was null"));
+	if (vector->data == NULL)	return throw_exception(INVALID_ARGUMENT,new_String("vector has been deleted"));
+	if (obj == NULL)			return throw_exception(INVALID_ARGUMENT,new_String("passed ptr to object is null"));
 	///SANITY CHECK///
 
 	uint64_t post_used_bytes = vector->size_bytes + vector->object_byte_size;
@@ -163,7 +121,12 @@ void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector_generic* vector, void* ob
 		if (!resize_success) return NULL;
 	}
 	void* item_position = vector->end;
-	memcpy(item_position, obj, vector->object_byte_size);
+	if (vector->copy_function != NULL) {
+		vector->copy_function(item_position, obj);
+	}
+	else {
+		memcpy(item_position, obj, vector->object_byte_size);
+	}
 	vector->size_bytes = post_used_bytes;
 	vector->size += 1;
 	vector->end = ((unsigned char*) vector->end) + vector->object_byte_size;
@@ -171,21 +134,24 @@ void* __VECTOR_MEMBER_FUNCTION_push_back(struct Vector_generic* vector, void* ob
 }
 
 bool __VECTOR_MEMBER_FUNCTION_pop_back(struct Vector_generic* vector) {
-	if (vector == NULL)				return throw_exception(INVALID_ARGUMENT, String("vector pointer was null"));
-	if (vector->data == NULL)		return throw_exception(INVALID_ARGUMENT, String("vector has been deleted"));
-	if (vector->size == 0)			return throw_exception(UNDERFLOW, String("vector is empty"));
+	if (vector == NULL)				return throw_exception(INVALID_ARGUMENT, new_String("vector pointer was null"));
+	if (vector->data == NULL)		return throw_exception(INVALID_ARGUMENT, new_String("vector has been deleted"));
+	if (vector->size == 0)			return throw_exception(UNDERFLOW, new_String("vector is empty"));
 	///SANITY CHECK///
 
 	vector->size -= 1;
 	vector->size_bytes -= vector->object_byte_size;
+	if (vector->delete_function != NULL) {
+		vector->delete_function(vector->end);
+	}
 	vector->end = (unsigned char*)vector->end - vector->object_byte_size;
 	return true;
 }
 
 void* __VECTOR_MEMBER_FUNCTION_at(struct Vector_generic* vector, uint64_t index) {
-	if (vector == NULL)				return throw_exception(INVALID_ARGUMENT, String("vector pointer was null"));
-	if (vector->data == NULL)		return throw_exception(INVALID_ARGUMENT, String("vector has been deleted"));
-	if (index<0 || index >= vector->size)		return throw_exception(OUT_OF_RANGE, String("vector indexing error, out of range"));
+	if (vector == NULL)							return throw_exception(INVALID_ARGUMENT, new_String("vector pointer was null"));
+	if (vector->data == NULL)					return throw_exception(INVALID_ARGUMENT, new_String("vector has been deleted"));
+	if (index<0 || index >= vector->size)		return throw_exception(OUT_OF_RANGE, new_String("vector indexing error, out of range"));
 	///SANITY CHECK///
 
 	return ((unsigned char*) vector->data) + index * vector->object_byte_size;
@@ -196,11 +162,15 @@ void* __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(struct Vector_generic* vector, uint6
 }
 
 bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector_generic* vector) {
-	if (vector == NULL)				return throw_exception(INVALID_ARGUMENT, String("vector pointer was null"));
-	if (vector->data == NULL)		return throw_exception(INVALID_ARGUMENT, String("vector has been deleted"));
+	if (vector == NULL)				return throw_exception(INVALID_ARGUMENT, new_String("vector pointer was null"));
+	if (vector->data == NULL)		return throw_exception(INVALID_ARGUMENT, new_String("vector has been deleted"));
 	///SANITY CHECK///
 
-
+	if (vector->delete_function != NULL) {
+		for (int i = 0; i < vector->size; i++) {
+			vector->delete_function(vector->at_ref(vector, i));
+		}
+	}
 	free(vector->data);
 	vector->data = NULL;
 	vector->reserved_bytes = 0;
@@ -210,10 +180,10 @@ bool __VECTOR_MEMBER_FUNCTION_delete(struct Vector_generic* vector) {
 }
 
 bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector_generic* vector, uint64_t starting_index, uint64_t length) {
-	if (vector == NULL)							return throw_exception(INVALID_ARGUMENT, String("vector pointer was null"));
-	if (vector->data == NULL)					return throw_exception(INVALID_ARGUMENT, String("vector has been deleted"));
-	if (length < 0 || starting_index < 0)		return throw_exception(OUT_OF_RANGE, String("vector indexing error, out of range"));
-	if (starting_index + length > vector->size)	return throw_exception(OUT_OF_RANGE, String("cannot remove more elements than exist from starting index to end"));
+	if (vector == NULL)							return throw_exception(INVALID_ARGUMENT, new_String("vector pointer was null"));
+	if (vector->data == NULL)					return throw_exception(INVALID_ARGUMENT, new_String("vector has been deleted"));
+	if (length < 0 || starting_index < 0)		return throw_exception(OUT_OF_RANGE, new_String("vector indexing error, out of range"));
+	if (starting_index + length > vector->size)	return throw_exception(OUT_OF_RANGE, new_String("cannot remove more elements than exist from starting index to end"));
 	///SANITY CHECK///
 
 	uint64_t ending_index = starting_index + length;
@@ -232,12 +202,12 @@ bool __VECTOR_MEMBER_FUNCTION_remove(struct Vector_generic* vector, uint64_t sta
 }
 
 bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vector_generic* other, uint64_t destination_index, uint64_t source_index, uint64_t length) {
-	if (vector == NULL)														return throw_exception(INVALID_ARGUMENT, String("vector pointer was null"));
-	if (vector->data == NULL)												return throw_exception(INVALID_ARGUMENT, String("vector has been deleted"));
-	if (vector->object_byte_size != other->object_byte_size)				return throw_exception(INVALID_ARGUMENT, String("cannot splice items of different width together"));
-	if (destination_index < 0 || destination_index >= vector->size)			return throw_exception(OUT_OF_RANGE, String("vector indexing error, out of range"));
-	if (source_index < 0 || length < 0)										return throw_exception(OUT_OF_RANGE, String("vector indexing error, out of range"));
-	if (source_index + length > other->size)								return throw_exception(OUT_OF_RANGE, String("vector indexing error, out of range"));
+	if (vector == NULL)														return throw_exception(INVALID_ARGUMENT, new_String("vector pointer was null"));
+	if (vector->data == NULL)												return throw_exception(INVALID_ARGUMENT, new_String("vector has been deleted"));
+	if (vector->object_byte_size != other->object_byte_size)				return throw_exception(INVALID_ARGUMENT, new_String("cannot splice items of different width together"));
+	if (destination_index < 0 || destination_index >= vector->size)			return throw_exception(OUT_OF_RANGE, new_String("vector indexing error, out of range"));
+	if (source_index < 0 || length < 0)										return throw_exception(OUT_OF_RANGE, new_String("vector indexing error, out of range"));
+	if (source_index + length > other->size)								return throw_exception(OUT_OF_RANGE, new_String("vector indexing error, out of range"));
 
 	///SANITY CHECK///
 
@@ -249,9 +219,34 @@ bool __VECTOR_MEMBER_FUNCTION_splice(struct Vector_generic* vector, struct Vecto
 	void* destination_splice_end	= __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(vector, destination_index + length);
 	void* source_splice_start		= __VECTOR_MEMBER_FUNCTION_at_DANGEROUS(other, source_index);
 
+
+
 	uint64_t length_bytes = length * vector->object_byte_size;
-	memcpy(destination_splice_end, destination_splice_start, length);
-	memcpy(destination_splice_start, source_splice_start, length);
+	uint64_t trailing_bytes = (unsigned char*)vector->end - destination_splice_start;
+	if (vector->copy_function != NULL) {
+		void* source_address = destination_splice_start;
+		void* destination_address = destination_splice_end;
+		while (true) {
+			vector->copy_function(destination_address, source_address);
+			vector->delete_function(source_address);
+			if (source_address == destination_splice_end) break;
+			((char*)source_address) += vector->object_byte_size;
+			((char*)destination_address) += vector->object_byte_size;
+		}
+		source_address = source_splice_start;
+		destination_address = destination_splice_start;
+		while (true) {
+			vector->copy_function(destination_address, source_address);
+			vector->delete_function(source_address);
+			if (source_address == destination_splice_start) break;
+			((char*)source_address) += vector->object_byte_size;
+			((char*)destination_address) += vector->object_byte_size;
+		}
+	}
+	else {
+		memcpy(destination_splice_end, destination_splice_start, trailing_bytes);
+		memcpy(destination_splice_start, source_splice_start, length_bytes);
+	}
 
 	vector->size += length;
 	vector->size_bytes += length_bytes;
@@ -272,8 +267,31 @@ bool __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(struct Vector_generic* vector, vo
 
 	uint64_t length_bytes = length * vector->object_byte_size;
 	uint64_t trailing_bytes = (unsigned char*) vector->end - destination_splice_start;
-	memcpy(destination_splice_end, destination_splice_start, trailing_bytes);
-	memcpy(destination_splice_start, source_splice_start, length);
+
+	if (vector->copy_function != NULL) {
+		void* source_address = destination_splice_start;
+		void* destination_address = destination_splice_end;
+		while (true) {
+			vector->copy_function(destination_address, source_address);
+			vector->delete_function(source_address);
+			if (source_address == destination_splice_end) break;
+			((char*)source_address) += vector->object_byte_size;
+			((char*)destination_address) += vector->object_byte_size;
+		}
+		source_address = source_splice_start;
+		destination_address = destination_splice_start;
+		while (true) {
+			vector->copy_function(destination_address, source_address);
+			vector->delete_function(source_address);
+			if (source_address == destination_splice_start) break;
+			((char*)source_address) += vector->object_byte_size;
+			((char*)destination_address) += vector->object_byte_size;
+		}
+	}
+	else {
+		memcpy(destination_splice_end, destination_splice_start, trailing_bytes);
+		memcpy(destination_splice_start, source_splice_start, length_bytes);
+	}
 
 	vector->size += length;
 	(char*)vector->end += length;
@@ -296,6 +314,8 @@ struct Vector_generic* new_Vector_generic(int object_byte_size) {
 	vector->at_ref = &__VECTOR_MEMBER_FUNCTION_at;
 	vector->delete = &__VECTOR_MEMBER_FUNCTION_delete;
 	vector->remove = &__VECTOR_MEMBER_FUNCTION_remove;
+	vector->copy_function = NULL;
+	vector->delete_function = NULL;
 	vector->at = NULL;
 	vector->push_back = NULL;
 	vector->reserve(vector, 1);
@@ -331,6 +351,8 @@ bool (*pop_back)(__VG* self);\
 t* (*at_ref)(__VG* self, uint64_t index);\
 bool (*remove)(__VG* self, uint64_t starting_index, uint64_t length);\
 bool (*delete)(__VG* self);\
+void (*copy_function)(void* address, void* object);\
+void (*delete_function)(void* address);\
 t (*at)(__VG* self, uint64_t index);\
 t* (*push_back)(__VG* self, t item);\
 };\
@@ -341,7 +363,7 @@ t* GLUE(__AVF_push_,suffix)(__VG* s, t i){\
 	return s->push_back_ref(s,&i);\
 }\
 struct Vector(suffix)* new_Vector(suffix)() {\
-	struct generic_vector* generic_vector = new_Vector_generic(sizeof(t));\
+	struct Vector_generic* generic_vector = new_Vector_generic(sizeof(t));\
 	return generic_vector;\
 }\
 struct Vector(suffix) Vector(suffix)(){\
@@ -375,7 +397,7 @@ char* __STRING_MEMBER_FUNCTION_c_str(struct String* string){
 }
 
 bool __STRING_MEMBER_FUNCTION_assign(struct String* string, char c_str[]) {
-	if (c_str == NULL) return throw_exception(INVALID_ARGUMENT, String("cannot copy string from nullptr"));
+	if (c_str == NULL) return throw_exception(INVALID_ARGUMENT, new_String("cannot copy string from nullptr"));
 	int length = strlen(c_str);
 	bool splice_return = __VECTOR_MEMBER_FUNCTION_splice_DANGEROUS(&string->vector, c_str, 0, 0, length);
 	bool push = string->vector.push_back_ref(&string->vector,"\0"); 
@@ -409,8 +431,8 @@ struct String* new_String(char str[]) {
 	string->assign = &__STRING_MEMBER_FUNCTION_assign;
 	string->assign_dynamic = &__STRING_MEMBER_FUNCTION_assign_dynamic;
 	string->delete = &__STRING_MEMBER_FUNCTION_delete;
-	string->assign(string, str);
 	string->append = &__STRING_MEMBER_FUNCTION_append;
+	string->assign(string, str);
 	return string;
 }
 
@@ -418,6 +440,7 @@ struct String* new_String(char str[]) {
 struct String String(char* str) {
 	struct String* string = new_String(str);
 	struct String return_object = *string;
+	//printf("%i",return_object.vector.size)
 	free(string);
 	return return_object;
 }
@@ -497,7 +520,7 @@ bool __FIXED_TREE_MEMBER_FUNCTION_insert(struct FixedTree* tree, uint64_t navkey
 	}
 }
 
-void __FIXED_TREE_MEMBER_FUNCTION_remove_object(struct FixedTree* tree, uint64_t id) {
+bool __FIXED_TREE_MEMBER_FUNCTION_remove_object(struct FixedTree* tree, uint64_t id) {
 	struct FixedTreeNode* chain[63];
 	int index = 0;
 	uint64_t bitmask = 1;
@@ -531,6 +554,7 @@ void __FIXED_TREE_MEMBER_FUNCTION_remove_object(struct FixedTree* tree, uint64_t
 	if (do_deletion == true) {
 		__FIXED_TREE_NODE_MEMBER_FUNCTION_delete(chain[index]);
 	}
+	return true;
 }
 
 GENERATE_PAIR_DECLARATION(uint64_t, void_ptr)
@@ -599,20 +623,21 @@ struct FixedTree* new_FixedTree(uint64_t object_byte_width, bool (*copy_function
 	return tree;
 }
 
-void* throw_exception(uint64_t error_literal, struct String message) {
+bool abort_on_exception = true;
+
+void* throw_exception(uint64_t error_literal, struct String* message) {
+
 	struct String* error_message_base = error_table->find(error_table, error_literal);
 	if (error_message_base == NULL) throw_exception(UNKNOWN_ERROR, message);
+
 	struct String final_message = String("\n\nException!: ");
-	for (int i = 0; i < final_message.vector.size; i++) {
-		char chara = final_message.vector.at(&final_message.vector, i);
-		printf("%i%c", i, chara);
-	}
 	final_message.append(&final_message, error_message_base->c_str(error_message_base));
 	final_message.append(&final_message, ". ");
-	final_message.append(&final_message, message.c_str(&message));
+	final_message.append(&final_message, message->c_str(message));
 	final_message.append(&final_message, "\n\n");
 	printf(final_message.c_str(&final_message));
-	abort();
+
+	if(abort_on_exception) abort();
 	return false;
 }
 
@@ -625,11 +650,58 @@ void construct_error_table() {
 	error_table->insert(error_table, INVALID_ARGUMENT, new_String("Invalid argument"));
 }
 
+//void menu_function(struct Vector(struct_string)* options, struct Vector_generic* funcs) {
+//	while (true) {
+//		for (int i = 0; i < options.size; i++) {
+//			struct String* message = options.at_ref(&options,i);
+//			printf(message->c_str(message));
+//		}
+//	}
+//}
+
+
+
+
+
 int main()
 {	
+	//srand(time(NULL));
 	construct_error_table();
 
+	int add_num_ints = 10;
+	int read_num_ints = 11;
+	int add_num_strings = 10;
+	int read_num_strings = 10;
 
+	//struct String a = String("asfd");
+	//throw_exception(0, a);
+
+	struct Vector(int) int_vec_1 = Vector(int)();
+	struct Vector_generic int_vec_2 = Vector_generic(sizeof(int));
+	//struct Vector(struct_string) string_vec = Vector(struct_string)();
+	printf("Adding %i ints to list: \n\tadding: ", add_num_ints);
+	for (int i = 0; i < add_num_ints; i++) {
+		int r = rand() % 10;
+		printf("%i, ", r);
+		int_vec_2.push_back_ref(&int_vec_2, &r);
+	}
+	printf("\n");
+	printf("Reading %i ints from list: \n\tlist:   ", read_num_ints);
+	for (int i = 0; i < read_num_ints; i++) {
+		printf("%i, ", *(int*)int_vec_2.at_ref(NULL, i));
+	}
+
+	printf("Adding %i ints to list: \n\tadding: ", add_num_ints);
+	for (int i = 0; i < add_num_ints; i++) {
+		int r = rand() % 10;
+		printf("%i, ", r);
+		int_vec_1.push_back(&int_vec_1, r);
+	}
+	printf("\n");
+	printf("Reading %i ints from list: \n\tlist:   ",read_num_ints);
+	for (int i = 0; i < read_num_ints; i++) {
+		printf("%i, ", int_vec_1.at(NULL,i));
+	}
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
