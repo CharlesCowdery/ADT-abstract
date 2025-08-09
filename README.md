@@ -1,4 +1,4 @@
-If youre reading this, please come back in a few hours. I ran into some utterly awful bugs, and so am running super late. I had to stop for the night, I am resuming in the morning, and will have it done by sometime saturday.
+If youre reading this, please come back in a few hours. I got overly ambitious, and then ran into some utterly awful bugs, so I am running super late. I had to stop for the night, I am resuming in the morning, and will have it done by sometime saturday.
 
 This is a project built for a final assignment in my CS3003 course
 
