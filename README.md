@@ -1,3 +1,5 @@
+If youre reading this, please come back in a few hours. I got overly ambitious, and then ran into some utterly awful bugs, so I am running super late. The bugs and squashed and the code is essentially done, but needs the demo completed. It should be done sometime saturday.
+
 This is a project built for a final assignment in my CS3003 course
 
 I have selected option one, ADT in imperative languages.
