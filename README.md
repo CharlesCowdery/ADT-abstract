@@ -1,4 +1,4 @@
-video link: [youtube.com/watch?v=Xj3sVVzeLOc&feature=youtu.be]
+video link: [youtube.com/watch?v=Xj3sVVzeLOc&feature=youtu.be](youtube.com/watch?v=Xj3sVVzeLOc&feature=youtu.be)
 
 This is a project built for a final assignment in my CS3003 course
 
